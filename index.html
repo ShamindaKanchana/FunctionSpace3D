@@ -2,9 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>FunctionSpace3D</title>
-  <style>body{margin:0;overflow:hidden}#root{width:100vw;height:100vh}</style>
+  <style>
+    body { margin:0; overflow:hidden; -webkit-tap-highlight-color: transparent; }
+    #root { width:100vw; height:100vh; }
+    .fs3d-header, .fs3d-range, .fs3d-presets { box-sizing: border-box; }
+    .fs3d-input { min-width: 120px; }
+    .fs3d-btn { min-width: 72px; }
+    @media (max-width: 768px) {
+      .fs3d-header, .fs3d-range, .fs3d-presets { padding: 6px 10px; gap: 6px; }
+      .fs3d-input { font-size: 13px; }
+      .fs3d-btn { padding: 5px 8px; font-size: 11px; }
+      .fs3d-range-input { width: 46px; }
+    }
+  </style>
 </head>
 <body>
   <div id="root"></div>
@@ -230,60 +242,52 @@ function setupOrbitControls(camera, domEl) {
   };
   updateCamera();
 
-  const onDown = e => { state.dragging = true; state.lastX = e.clientX; state.lastY = e.clientY; };
-  const onUp   = () => { state.dragging = false; };
+  const getPos = e => {
+    if (e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
+  };
+
+  const onDown = e => {
+    const p = getPos(e);
+    state.dragging = true;
+    state.lastX = p.x;
+    state.lastY = p.y;
+  };
+
+  const onUp = () => { state.dragging = false; };
+
   const onMove = e => {
     if (!state.dragging) return;
-    state.theta -= (e.clientX - state.lastX) * 0.01;
-    state.phi    = Math.max(0.1, Math.min(Math.PI - 0.1, state.phi - (e.clientY - state.lastY) * 0.01));
-    state.lastX = e.clientX; state.lastY = e.clientY;
+    const p = getPos(e);
+    state.theta -= (p.x - state.lastX) * 0.01;
+    state.phi = Math.max(0.1, Math.min(Math.PI - 0.1, state.phi - (p.y - state.lastY) * 0.01));
+    state.lastX = p.x;
+    state.lastY = p.y;
     updateCamera();
   };
+
   const onWheel = e => {
     state.radius = Math.max(3, Math.min(40, state.radius + e.deltaY * 0.02));
     updateCamera();
   };
 
   domEl.addEventListener('mousedown', onDown);
+  domEl.addEventListener('touchstart', onDown, { passive: false });
   window.addEventListener('mouseup',  onUp);
+  window.addEventListener('touchend', onUp);
   window.addEventListener('mousemove', onMove);
+  window.addEventListener('touchmove', onMove, { passive: false });
   domEl.addEventListener('wheel', onWheel, { passive: true });
 
   return () => {
     domEl.removeEventListener('mousedown', onDown);
+    domEl.removeEventListener('touchstart', onDown);
     window.removeEventListener('mouseup',  onUp);
+    window.removeEventListener('touchend', onUp);
     window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('touchmove', onMove);
     domEl.removeEventListener('wheel', onWheel);
   };
-}
-
-function App() {
-  scene.children.filter(c => c.userData.isHelper).forEach(c => scene.remove(c));
-
-  const addLine = (points, color) => {
-    const geo = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineBasicMaterial({ color });
-    const line = new THREE.Line(geo, mat);
-    line.userData.isHelper = true;
-    scene.add(line);
-  };
-
-  addLine([new THREE.Vector3(-8,0,0), new THREE.Vector3(8,0,0)], 0xff4444);
-  addLine([new THREE.Vector3(0,-8,0), new THREE.Vector3(0,8,0)], 0x44ff44);
-  addLine([new THREE.Vector3(0,0,-8), new THREE.Vector3(0,0,8)], 0x4488ff);
-
-  const gridMat = new THREE.LineBasicMaterial({ color: 0x444466, transparent: true, opacity: 0.4 });
-  for (let i = -5; i <= 5; i++) {
-    const g1 = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(i, 0, -5), new THREE.Vector3(i, 0, 5)
-    ]);
-    const g2 = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-5, 0, i), new THREE.Vector3(5, 0, i)
-    ]);
-    const l1 = new THREE.Line(g1, gridMat); l1.userData.isHelper = true;
-    const l2 = new THREE.Line(g2, gridMat); l2.userData.isHelper = true;
-    scene.add(l1); scene.add(l2);
-  }
 }
 
 function App() {
@@ -454,17 +458,17 @@ function App() {
 
   const RangeField = ({ k, label }) => (
     <label style={{ fontSize:12, color:'#8888aa' }}>{label}
-      <input style={S.rangeInput} type='number' value={range[k]}
+      <input style={S.rangeInput} className="fs3d-range-input" type='number' value={range[k]}
         onChange={e => setRange(r => ({ ...r, [k]: parseFloat(e.target.value) || 0 }))} />
     </label>
   );
 
   return (
     <div style={S.app}>
-      <div style={S.header}>
+      <div style={S.header} className="fs3d-header">
         <h1 style={S.title}>∫ 3D Math Visualizer</h1>
         <div style={S.panel}>
-          <input style={S.input} value={equation}
+          <input style={S.input} className="fs3d-input" value={equation}
             onChange={e => setEquation(e.target.value)}
             onKeyDown={e => e.key==='Enter' && handlePlot()}
             placeholder='e.g. z = sin(x)*cos(y) or x^2+y^2+z^2=4' />
@@ -481,14 +485,14 @@ function App() {
         </div>
       </div>
 
-      <div style={{ padding:'6px 16px', background:'#0c0c1e', borderBottom:'1px solid #1e1e3a', display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
+      <div className="fs3d-range" style={{ padding:'6px 16px', background:'#0c0c1e', borderBottom:'1px solid #1e1e3a', display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
         <span style={{ fontSize:12, color:'#6666aa', fontWeight:600 }}>Range:</span>
         <RangeField k='xMin' label='x min ' /><RangeField k='xMax' label='x max ' />
         <RangeField k='yMin' label='y min ' /><RangeField k='yMax' label='y max ' />
         <RangeField k='zMin' label='z min ' /><RangeField k='zMax' label='z max ' />
       </div>
 
-      <div style={S.presets}>
+      <div style={S.presets} className="fs3d-presets">
         {PRESETS.map(p => (
           <button key={p.label} style={S.presetBtn}
             onClick={() => { setEquation(p.eq); setTimeout(() => plotEquation(p.eq), 0); }}>
