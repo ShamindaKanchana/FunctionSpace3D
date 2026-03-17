@@ -1,523 +1,394 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>FunctionSpace3D</title>
-  <style>
-    body { margin:0; overflow:hidden; -webkit-tap-highlight-color: transparent; }
-    #root { width:100vw; height:100vh; }
-    .fs3d-header, .fs3d-range, .fs3d-presets { box-sizing: border-box; }
-    .fs3d-input { min-width: 120px; }
-    .fs3d-btn { min-width: 72px; }
-    @media (max-width: 768px) {
-      .fs3d-header, .fs3d-range, .fs3d-presets { padding: 6px 10px; gap: 6px; }
-      .fs3d-input { font-size: 13px; }
-      .fs3d-btn { padding: 5px 8px; font-size: 11px; }
-      .fs3d-range-input { width: 46px; }
-    }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>3D Math Visualizer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.1/math.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0a14; color: #e0e0ff; font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  #header { padding: 8px 14px; background: #12122a; border-bottom: 1px solid #2a2a4a; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #header h1 { font-size: 17px; font-weight: 700; color: #a0a8ff; letter-spacing: 1px; white-space: nowrap; }
+  #eq-input { flex: 1; min-width: 200px; padding: 6px 10px; border-radius: 6px; border: 1px solid #3a3a6a; background: #1a1a30; color: #e0e0ff; font-size: 14px; }
+  #eq-input:focus { outline: 1px solid #6a7aef; }
+
+  .btn { padding: 6px 13px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; font-size: 13px; transition: background .15s; }
+  #btn-plot  { background: #4a5aef; color: #fff; }
+  #btn-plot:hover { background: #5a6aff; }
+  #btn-clear { background: #3a3a5a; color: #c0c8ff; }
+  #btn-clear:hover { background: #4a4a6a; }
+  #btn-wire  { background: #2a2a4a; color: #c0c8ff; }
+  #btn-wire.active { background: #1a5a2a; }
+  #btn-anim  { background: #2a2a4a; color: #c0c8ff; }
+  #btn-anim.active { background: #1a5a2a; }
+
+  #range-bar { padding: 5px 14px; background: #0c0c1e; border-bottom: 1px solid #1e1e3a; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 12px; color: #7777aa; }
+  #range-bar label { display: flex; align-items: center; gap: 3px; }
+  #range-bar input { width: 50px; padding: 2px 5px; border-radius: 4px; border: 1px solid #3a3a6a; background: #1a1a30; color: #e0e0ff; font-size: 12px; }
+
+  #presets { padding: 5px 14px; background: #0e0e20; border-bottom: 1px solid #1e1e3a; display: flex; gap: 6px; flex-wrap: wrap; }
+  .preset-btn { padding: 3px 10px; border-radius: 12px; border: 1px solid #3a3a6a; background: #1a1a2e; color: #a0a8ff; cursor: pointer; font-size: 12px; transition: background .15s; }
+  .preset-btn:hover { background: #2a2a4e; }
+
+  #error-bar { display: none; padding: 4px 14px; background: #1a0808; color: #ff8888; font-size: 12px; }
+
+  #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
+  #canvas-wrap canvas { display: block; }
+
+  #legend { position: absolute; bottom: 12px; left: 12px; background: rgba(0,0,0,.65); padding: 8px 12px; border-radius: 8px; font-size: 12px; line-height: 2; pointer-events: none; }
+  #legend .ax { font-weight: 600; }
+  #plotted-label { color: #aaaaff; max-width: 200px; word-break: break-all; margin-top: 2px; font-size: 11px; display: none; }
+  #hint { color: #555577; font-size: 11px; }
+</style>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="module">
-import React, { useState, useEffect, useRef, useCallback } from 'https://esm.sh/react@18';
-import { createRoot } from 'https://esm.sh/react-dom@18/client';
-import * as THREE from 'https://esm.sh/three@0.158';
-import * as math from 'https://esm.sh/mathjs@13.9.1';
 
+<!-- ── Header ── -->
+<div id="header">
+  <h1>∫ 3D Math Visualizer</h1>
+  <input id="eq-input" placeholder="e.g. z = sin(x)*cos(y)  or  x^2+y^2+z^2=4" value="z = sin(x) * cos(y)"/>
+  <button class="btn" id="btn-plot">▶ Plot</button>
+  <button class="btn" id="btn-clear">✕ Clear</button>
+  <button class="btn" id="btn-wire">⬡ Wireframe</button>
+  <button class="btn" id="btn-anim">▶ Animate</button>
+</div>
+
+<!-- ── Range ── -->
+<div id="range-bar">
+  <strong style="color:#6666aa">Range:</strong>
+  <label>x min <input class="rng" id="xMin" type="number" value="-5"/></label>
+  <label>x max <input class="rng" id="xMax" type="number" value="5"/></label>
+  <label>y min <input class="rng" id="yMin" type="number" value="-5"/></label>
+  <label>y max <input class="rng" id="yMax" type="number" value="5"/></label>
+  <label>z min <input class="rng" id="zMin" type="number" value="-5"/></label>
+  <label>z max <input class="rng" id="zMax" type="number" value="5"/></label>
+</div>
+
+<!-- ── Presets ── -->
+<div id="presets"></div>
+
+<!-- ── Error ── -->
+<div id="error-bar"></div>
+
+<!-- ── Canvas ── -->
+<div id="canvas-wrap">
+  <div id="legend">
+    <div class="ax" style="color:#ff5555">─ X axis</div>
+    <div class="ax" style="color:#55ff55">─ Y axis</div>
+    <div class="ax" style="color:#5599ff">─ Z axis</div>
+    <div id="plotted-label">📈 <span id="plotted-text"></span></div>
+    <div id="hint">Drag · Scroll · Orbit</div>
+  </div>
+</div>
+
+<script>
+// ── Presets data ──────────────────────────────────────────────────────────────
 const PRESETS = [
-  { label: 'Sine Surface',   eq: 'z = sin(x) * cos(y)',        type: 'surface' },
-  { label: 'Paraboloid',     eq: 'z = x^2 + y^2',              type: 'surface' },
-  { label: 'Saddle',         eq: 'z = x^2 - y^2',              type: 'surface' },
-  { label: 'Ripple',         eq: 'z = sin(sqrt(x^2+y^2))',     type: 'surface' },
-  { label: 'Sphere',         eq: 'x^2 + y^2 + z^2 = 4',        type: 'implicit' },
-  { label: 'Torus (approx)', eq: 'z = 0.3*sin(6*atan2(y,x))',  type: 'surface' },
-  { label: 'Sine Curve',     eq: 'y = sin(x)',                  type: 'curve' },
-  { label: 'Helix',          eq: 'helix',                       type: 'special' },
-  { label: 'Cone',           eq: 'z = sqrt(x^2 + y^2)',        type: 'surface' },
-  { label: 'Wave (animate)', eq: 'z = sin(x + t) * cos(y)',    type: 'surface' },
+  { label:"Sine Surface",   eq:"z = sin(x) * cos(y)" },
+  { label:"Paraboloid",     eq:"z = x^2 + y^2" },
+  { label:"Saddle",         eq:"z = x^2 - y^2" },
+  { label:"Ripple",         eq:"z = sin(sqrt(x^2+y^2))" },
+  { label:"Sphere",         eq:"x^2 + y^2 + z^2 = 4" },
+  { label:"Helix",          eq:"helix" },
+  { label:"Cone",           eq:"z = sqrt(x^2 + y^2)" },
+  { label:"Wave (animate)", eq:"z = sin(x + t) * cos(y)" },
+  { label:"Sine Curve",     eq:"y = sin(x)" },
+  { label:"Gaussian",       eq:"z = exp(-(x^2+y^2)/4)" },
 ];
 
-const DEFAULT_RANGE = { xMin: -5, xMax: 5, yMin: -5, yMax: 5, zMin: -5, zMax: 5 };
-const GRID_STEPS = 80;
+const presetsEl = document.getElementById("presets");
+PRESETS.forEach(p => {
+  const b = document.createElement("button");
+  b.className = "preset-btn";
+  b.textContent = p.label;
+  b.onclick = () => { document.getElementById("eq-input").value = p.eq; plot(); };
+  presetsEl.appendChild(b);
+});
 
-function classifyEquation(eq) {
+// ── Three.js setup ────────────────────────────────────────────────────────────
+const wrap   = document.getElementById("canvas-wrap");
+const W = () => wrap.clientWidth, H = () => wrap.clientHeight;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x0f0f1a);
+renderer.setSize(W(), H());
+wrap.appendChild(renderer.domElement);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, W()/H(), 0.1, 1000);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+dir.position.set(5, 10, 5);
+scene.add(dir);
+
+window.addEventListener("resize", () => {
+  camera.aspect = W()/H();
+  camera.updateProjectionMatrix();
+  renderer.setSize(W(), H());
+});
+
+// ── Render loop ───────────────────────────────────────────────────────────────
+let currentMesh = null;
+let animating = false;
+let wireframe = false;
+let tVal = 0;
+let animId = null;
+
+function renderLoop() {
+  requestAnimationFrame(renderLoop);
+  renderer.render(scene, camera);
+}
+renderLoop();
+
+// ── Orbit controls ────────────────────────────────────────────────────────────
+const orbit = { dragging:false, lx:0, ly:0, theta:0.6, phi:1.0, radius:14 };
+function updateCamera() {
+  camera.position.set(
+    orbit.radius * Math.sin(orbit.phi) * Math.sin(orbit.theta),
+    orbit.radius * Math.cos(orbit.phi),
+    orbit.radius * Math.sin(orbit.phi) * Math.cos(orbit.theta)
+  );
+  camera.lookAt(0, 0, 0);
+}
+updateCamera();
+
+renderer.domElement.addEventListener("mousedown", e => { orbit.dragging=true; orbit.lx=e.clientX; orbit.ly=e.clientY; });
+window.addEventListener("mouseup", () => orbit.dragging=false);
+window.addEventListener("mousemove", e => {
+  if (!orbit.dragging) return;
+  orbit.theta -= (e.clientX - orbit.lx) * 0.01;
+  orbit.phi = Math.max(0.1, Math.min(Math.PI-0.1, orbit.phi - (e.clientY - orbit.ly) * 0.01));
+  orbit.lx = e.clientX; orbit.ly = e.clientY;
+  updateCamera();
+});
+renderer.domElement.addEventListener("wheel", e => {
+  orbit.radius = Math.max(3, Math.min(40, orbit.radius + e.deltaY * 0.02));
+  updateCamera();
+}, { passive: true });
+
+// Touch support
+let lastTouchDist = null;
+renderer.domElement.addEventListener("touchstart", e => {
+  if (e.touches.length === 1) { orbit.dragging=true; orbit.lx=e.touches[0].clientX; orbit.ly=e.touches[0].clientY; }
+  else if (e.touches.length === 2) { lastTouchDist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); }
+}, { passive:true });
+renderer.domElement.addEventListener("touchend", () => { orbit.dragging=false; lastTouchDist=null; }, { passive:true });
+renderer.domElement.addEventListener("touchmove", e => {
+  if (e.touches.length === 1 && orbit.dragging) {
+    orbit.theta -= (e.touches[0].clientX - orbit.lx) * 0.01;
+    orbit.phi = Math.max(0.1, Math.min(Math.PI-0.1, orbit.phi - (e.touches[0].clientY - orbit.ly) * 0.01));
+    orbit.lx=e.touches[0].clientX; orbit.ly=e.touches[0].clientY;
+    updateCamera();
+  } else if (e.touches.length === 2 && lastTouchDist !== null) {
+    const d = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+    orbit.radius = Math.max(3, Math.min(40, orbit.radius - (d - lastTouchDist) * 0.05));
+    lastTouchDist = d; updateCamera();
+  }
+}, { passive:true });
+
+// ── Axes & Grid ───────────────────────────────────────────────────────────────
+function addHelper(pts, color, isLine=true) {
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = isLine
+    ? new THREE.LineBasicMaterial({ color })
+    : new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.35 });
+  const l = new THREE.Line(geo, mat);
+  l.userData.helper = true;
+  scene.add(l);
+}
+function buildAxesGrid() {
+  addHelper([new THREE.Vector3(-8,0,0), new THREE.Vector3(8,0,0)], 0xff4444);
+  addHelper([new THREE.Vector3(0,-8,0), new THREE.Vector3(0,8,0)], 0x44ff44);
+  addHelper([new THREE.Vector3(0,0,-8), new THREE.Vector3(0,0,8)], 0x5599ff);
+  for (let i=-5;i<=5;i++) {
+    addHelper([new THREE.Vector3(i,0,-5),new THREE.Vector3(i,0,5)], 0x333355, false);
+    addHelper([new THREE.Vector3(-5,0,i),new THREE.Vector3(5,0,i)], 0x333355, false);
+  }
+}
+buildAxesGrid();
+
+// ── Equation helpers ──────────────────────────────────────────────────────────
+function classify(eq) {
   const s = eq.trim().toLowerCase();
-  if (s === 'helix') return 'special';
-  if (/^z\s*=/.test(s)) return 'surface';
-  if (/^y\s*=/.test(s)) return 'curve';
-  if (/^x\s*=/.test(s)) return 'curve_x';
-  return 'implicit';
+  if (s === "helix") return "helix";
+  if (/^z\s*=/.test(s)) return "surface";
+  if (/^y\s*=/.test(s)) return "curve";
+  if (/^x\s*=/.test(s)) return "curvex";
+  return "implicit";
+}
+function rhs(eq, v) {
+  return eq.replace(new RegExp(`^${v}\\s*=\\s*`,"i"),"").trim();
 }
 
-function extractRHS(eq, lhsVar) {
-  return eq.replace(new RegExp(`^${lhsVar}\\s*=\\s*`, 'i'), '').trim();
-}
+const STEPS = 80;
 
-function buildSurfaceGeometry(exprStr, range, t = 0) {
-  const { xMin, xMax, yMin, yMax } = range;
-  const steps = GRID_STEPS;
-  const positions = [];
-  const indices = [];
-  const colors = [];
-
-  let compiled;
-  try { compiled = math.compile(exprStr); } catch { return null; }
-
-  const zVals = [];
-  let zMin = Infinity, zMax = -Infinity;
-
-  for (let i = 0; i <= steps; i++) {
-    const row = [];
-    const x = xMin + (xMax - xMin) * (i / steps);
-    for (let j = 0; j <= steps; j++) {
-      const y = yMin + (yMax - yMin) * (j / steps);
-      let z;
-      try { z = compiled.evaluate({ x, y, t }); } catch { z = NaN; }
-      if (!isFinite(z)) z = NaN;
+function buildSurface(expr, range, t) {
+  const {xMin,xMax,yMin,yMax} = range;
+  let fn; try { fn = math.compile(expr); } catch { return null; }
+  const N = STEPS, pos=[], col=[], idx=[];
+  const zArr=[];
+  let lo=Infinity, hi=-Infinity;
+  for (let i=0;i<=N;i++) {
+    const row=[], x=xMin+(xMax-xMin)*(i/N);
+    for (let j=0;j<=N;j++) {
+      const y=yMin+(yMax-yMin)*(j/N);
+      let z; try { z=fn.evaluate({x,y,t}); } catch { z=NaN; }
+      if (!isFinite(z)) z=NaN;
       row.push(z);
-      if (!isNaN(z)) { if (z < zMin) zMin = z; if (z > zMax) zMax = z; }
+      if (!isNaN(z)) { lo=Math.min(lo,z); hi=Math.max(hi,z); }
     }
-    zVals.push(row);
+    zArr.push(row);
   }
-
-  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  const zRange = zMax - zMin || 1;
-
-  for (let i = 0; i <= steps; i++) {
-    const x = xMin + (xMax - xMin) * (i / steps);
-    for (let j = 0; j <= steps; j++) {
-      const y = yMin + (yMax - yMin) * (j / steps);
-      const z = zVals[i][j];
-      positions.push(x, isNaN(z) ? 0 : z, y);
-      const t01 = isNaN(z) ? 0 : clamp((z - zMin) / zRange, 0, 1);
-      const r = clamp(1.5 - Math.abs(t01 * 4 - 3), 0, 1);
-      const g = clamp(1.5 - Math.abs(t01 * 4 - 2), 0, 1);
-      const b = clamp(1.5 - Math.abs(t01 * 4 - 1), 0, 1);
-      colors.push(r, g, b);
+  const span=hi-lo||1;
+  const cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+  for (let i=0;i<=N;i++) {
+    const x=xMin+(xMax-xMin)*(i/N);
+    for (let j=0;j<=N;j++) {
+      const y=yMin+(yMax-yMin)*(j/N), z=zArr[i][j];
+      pos.push(x, isNaN(z)?0:z, y);
+      const u=isNaN(z)?0:cl((z-lo)/span,0,1);
+      col.push(cl(1.5-Math.abs(u*4-3),0,1), cl(1.5-Math.abs(u*4-2),0,1), cl(1.5-Math.abs(u*4-1),0,1));
     }
   }
-
-  for (let i = 0; i < steps; i++) {
-    for (let j = 0; j < steps; j++) {
-      const a = i * (steps + 1) + j;
-      const b = a + 1;
-      const c = a + (steps + 1);
-      const d = c + 1;
-      const zs = [zVals[i][j], zVals[i][j+1], zVals[i+1][j], zVals[i+1][j+1]];
-      if (zs.some(isNaN)) continue;
-      indices.push(a, c, b, b, c, d);
-    }
+  for (let i=0;i<N;i++) for (let j=0;j<N;j++) {
+    const a=i*(N+1)+j, b=a+1, c=a+(N+1), d=c+1;
+    if ([zArr[i][j],zArr[i][j+1],zArr[i+1][j],zArr[i+1][j+1]].some(isNaN)) continue;
+    idx.push(a,c,b, b,c,d);
   }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('color',    new THREE.Float32BufferAttribute(colors, 3));
-  geo.setIndex(indices);
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));
+  geo.setAttribute("color",new THREE.Float32BufferAttribute(col,3));
+  geo.setIndex(idx);
   geo.computeVertexNormals();
   return geo;
 }
 
-function buildCurveGeometry(exprStr, range, isXFunc = false) {
-  const { xMin, xMax } = range;
-  const steps = 800;
-  let compiled;
-  try { compiled = math.compile(exprStr); } catch { return null; }
-  const pts = [];
-  for (let i = 0; i <= steps; i++) {
-    const x = xMin + (xMax - xMin) * (i / steps);
-    try {
-      const y = compiled.evaluate({ x });
-      if (isFinite(y)) {
-        pts.push(isXFunc ? new THREE.Vector3(y, x, 0) : new THREE.Vector3(x, y, 0));
-      }
-    } catch { }
+function buildCurve(expr, range, swapXY=false) {
+  const {xMin,xMax}=range;
+  let fn; try { fn=math.compile(expr); } catch { return null; }
+  const pts=[];
+  for (let i=0;i<=800;i++) {
+    const x=xMin+(xMax-xMin)*(i/800);
+    try { const y=fn.evaluate({x}); if(isFinite(y)) pts.push(swapXY?new THREE.Vector3(y,x,0):new THREE.Vector3(x,y,0)); } catch {}
   }
   return new THREE.BufferGeometry().setFromPoints(pts);
 }
 
-function buildImplicitGeometry(exprStr, range) {
-  const { xMin, xMax, yMin, yMax, zMin, zMax } = range;
-  const N = 40;
-  let compiled;
-  let expr = exprStr;
-  const eqIdx = expr.indexOf('=');
-  if (eqIdx !== -1) {
-    const lhs = expr.slice(0, eqIdx).trim();
-    const rhs = expr.slice(eqIdx + 1).trim();
-    expr = `(${lhs}) - (${rhs})`;
+function buildImplicit(eq, range) {
+  const {xMin,xMax,yMin,yMax,zMin,zMax}=range;
+  let expr=eq;
+  const ei=expr.indexOf("=");
+  if(ei!==-1) expr=`(${expr.slice(0,ei).trim()})-(${expr.slice(ei+1).trim()})`;
+  let fn; try { fn=math.compile(expr); } catch { return null; }
+  const N=40, dx=(xMax-xMin)/N, dy=(yMax-yMin)/N, dz=(zMax-zMin)/N;
+  const v=(xi,yi,zi)=>{ try { const r=fn.evaluate({x:xMin+xi*dx,y:yMin+yi*dy,z:zMin+zi*dz}); return isFinite(r)?r:NaN; } catch { return NaN; }};
+  const pts=[];
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++) for(let k=0;k<N;k++){
+    const v0=v(i,j,k);
+    if(isNaN(v0)) continue;
+    [[v(i+1,j,k),i+.5,j,k],[v(i,j+1,k),i,j+.5,k],[v(i,j,k+1),i,j,k+.5]].forEach(([vb,xi,yi,zi])=>{
+      if(isNaN(vb)||v0*vb>=0) return;
+      const t=v0/(v0-vb);
+      pts.push(new THREE.Vector3(xMin+xi*dx+t*(vb>0?1:0)*dx, yMin+yi*dy+t*(vb>0?1:0)*dy, zMin+zi*dz+t*(vb>0?1:0)*dz));
+    });
   }
-  try { compiled = math.compile(expr); } catch { return null; }
+  return pts.length?new THREE.BufferGeometry().setFromPoints(pts):null;
+}
 
-  const dx = (xMax - xMin) / N;
-  const dy = (yMax - yMin) / N;
-  const dz = (zMax - zMin) / N;
-
-  const val = (xi, yi, zi) => {
-    const x = xMin + xi * dx, y = yMin + yi * dy, z = zMin + zi * dz;
-    try { const v = compiled.evaluate({ x, y, z }); return isFinite(v) ? v : NaN; }
-    catch { return NaN; }
-  };
-
-  const pts = [];
-  for (let i = 0; i < N; i++) {
-    for (let j = 0; j < N; j++) {
-      for (let k = 0; k < N; k++) {
-        const v000 = val(i, j, k);
-        const v100 = val(i+1, j, k);
-        const v010 = val(i, j+1, k);
-        const v001 = val(i, j, k+1);
-        if (isNaN(v000)) continue;
-        const edges = [
-          [v000, v100, i+0.5, j, k],
-          [v000, v010, i, j+0.5, k],
-          [v000, v001, i, j, k+0.5],
-        ];
-        for (const [va, vb, xi, yi, zi] of edges) {
-          if (isNaN(vb)) continue;
-          if (va * vb < 0) {
-            const t = va / (va - vb);
-            pts.push(new THREE.Vector3(
-              xMin + (xi + (vb > 0 ? t : 0)) * dx,
-              yMin + (yi + (vb > 0 ? t : 0)) * dy,
-              zMin + (zi + (vb > 0 ? t : 0)) * dz
-            ));
-          }
-        }
-      }
-    }
-  }
-  if (pts.length === 0) return null;
+function buildHelix() {
+  const pts=[];
+  for(let t=0;t<=Math.PI*8;t+=0.04) pts.push(new THREE.Vector3(Math.cos(t)*2,t*.4-5,Math.sin(t)*2));
   return new THREE.BufferGeometry().setFromPoints(pts);
 }
 
-function buildHelixGeometry() {
-  const pts = [];
-  for (let t = 0; t <= Math.PI * 8; t += 0.05) {
-    pts.push(new THREE.Vector3(Math.cos(t) * 2, t * 0.4 - 5, Math.sin(t) * 2));
-  }
-  return new THREE.BufferGeometry().setFromPoints(pts);
+// ── Error display ─────────────────────────────────────────────────────────────
+const errBar=document.getElementById("error-bar");
+function showError(msg) { errBar.textContent=msg; errBar.style.display=msg?"block":"none"; }
+
+// ── Plot ──────────────────────────────────────────────────────────────────────
+function getRange() {
+  return { xMin:+document.getElementById("xMin").value, xMax:+document.getElementById("xMax").value,
+           yMin:+document.getElementById("yMin").value, yMax:+document.getElementById("yMax").value,
+           zMin:+document.getElementById("zMin").value, zMax:+document.getElementById("zMax").value };
 }
 
-function createAxesAndGrid(scene) {
-  scene.children.filter(c => c.userData.isHelper).forEach(c => scene.remove(c));
-
-  const addLine = (points, color) => {
-    const geo = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineBasicMaterial({ color });
-    const line = new THREE.Line(geo, mat);
-    line.userData.isHelper = true;
-    scene.add(line);
-  };
-
-  addLine([new THREE.Vector3(-8,0,0), new THREE.Vector3(8,0,0)], 0xff4444);
-  addLine([new THREE.Vector3(0,-8,0), new THREE.Vector3(0,8,0)], 0x44ff44);
-  addLine([new THREE.Vector3(0,0,-8), new THREE.Vector3(0,0,8)], 0x4488ff);
-
-  const gridMat = new THREE.LineBasicMaterial({ color: 0x444466, transparent: true, opacity: 0.4 });
-  for (let i = -5; i <= 5; i++) {
-    const g1 = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(i, 0, -5), new THREE.Vector3(i, 0, 5)
-    ]);
-    const g2 = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-5, 0, i), new THREE.Vector3(5, 0, i)
-    ]);
-    const l1 = new THREE.Line(g1, gridMat); l1.userData.isHelper = true;
-    const l2 = new THREE.Line(g2, gridMat); l2.userData.isHelper = true;
-    scene.add(l1); scene.add(l2);
-  }
+function removeMesh() {
+  if (currentMesh) { scene.remove(currentMesh); currentMesh=null; }
 }
 
-function setupOrbitControls(camera, domEl) {
-  const state = { dragging: false, lastX: 0, lastY: 0, theta: 0.6, phi: 1.0, radius: 14 };
-
-  const updateCamera = () => {
-    camera.position.set(
-      state.radius * Math.sin(state.phi) * Math.sin(state.theta),
-      state.radius * Math.cos(state.phi),
-      state.radius * Math.sin(state.phi) * Math.cos(state.theta)
-    );
-    camera.lookAt(0, 0, 0);
-  };
-  updateCamera();
-
-  const getPos = e => {
-    if (e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    return { x: e.clientX, y: e.clientY };
-  };
-
-  const onDown = e => {
-    const p = getPos(e);
-    state.dragging = true;
-    state.lastX = p.x;
-    state.lastY = p.y;
-  };
-
-  const onUp = () => { state.dragging = false; };
-
-  const onMove = e => {
-    if (!state.dragging) return;
-    const p = getPos(e);
-    state.theta -= (p.x - state.lastX) * 0.01;
-    state.phi = Math.max(0.1, Math.min(Math.PI - 0.1, state.phi - (p.y - state.lastY) * 0.01));
-    state.lastX = p.x;
-    state.lastY = p.y;
-    updateCamera();
-  };
-
-  const onWheel = e => {
-    state.radius = Math.max(3, Math.min(40, state.radius + e.deltaY * 0.02));
-    updateCamera();
-  };
-
-  domEl.addEventListener('mousedown', onDown);
-  domEl.addEventListener('touchstart', onDown, { passive: false });
-  window.addEventListener('mouseup',  onUp);
-  window.addEventListener('touchend', onUp);
-  window.addEventListener('mousemove', onMove);
-  window.addEventListener('touchmove', onMove, { passive: false });
-  domEl.addEventListener('wheel', onWheel, { passive: true });
-
-  return () => {
-    domEl.removeEventListener('mousedown', onDown);
-    domEl.removeEventListener('touchstart', onDown);
-    window.removeEventListener('mouseup',  onUp);
-    window.removeEventListener('touchend', onUp);
-    window.removeEventListener('mousemove', onMove);
-    window.removeEventListener('touchmove', onMove);
-    domEl.removeEventListener('wheel', onWheel);
-  };
-}
-
-function App() {
-  const mountRef   = useRef(null);
-  const rendererRef = useRef(null);
-  const sceneRef   = useRef(null);
-  const cameraRef  = useRef(null);
-  const meshRef    = useRef(null);
-  const animRef    = useRef(null);
-  const tRef       = useRef(0);
-
-  const [equation,  setEquation]  = useState('z = sin(x) * cos(y)');
-  const [wireframe, setWireframe] = useState(false);
-  const [animate,   setAnimate]   = useState(false);
-  const [error,     setError]     = useState('');
-  const [range,     setRange]     = useState(DEFAULT_RANGE);
-  const [plotted,   setPlotted]   = useState('');
-
-  useEffect(() => {
-    const dom = mountRef.current;
-    if (!dom) return;
-
-    const w = dom.clientWidth;
-    const h = dom.clientHeight;
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(w, h);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setClearColor(0x0f0f1a);
-    dom.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
-
-    const scene = new THREE.Scene();
-    sceneRef.current = scene;
-
-    const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 1000);
-    cameraRef.current = camera;
-
-    const ambient = new THREE.AmbientLight(0xffffff, 0.4);
-    scene.add(ambient);
-    const dir = new THREE.DirectionalLight(0xffffff, 0.8);
-    dir.position.set(5, 10, 5);
-    scene.add(dir);
-
-    createAxesAndGrid(scene);
-
-    const cleanupOrbit = setupOrbitControls(camera, renderer.domElement);
-
-    const loop = () => {
-      animRef.current = requestAnimationFrame(loop);
-      renderer.render(scene, camera);
-    };
-    loop();
-
-    const onResize = () => {
-      if (!mountRef.current) return;
-      const w2 = mountRef.current.clientWidth;
-      const h2 = mountRef.current.clientHeight;
-      camera.aspect = w2 / h2;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w2, h2);
-    };
-    window.addEventListener('resize', onResize);
-
-    return () => {
-      cancelAnimationFrame(animRef.current);
-      window.removeEventListener('resize', onResize);
-      cleanupOrbit();
-      renderer.dispose();
-      if (mountRef.current) mountRef.current.removeChild(renderer.domElement);
-    };
-  }, []);
-
-  // orbit controls are attached during initialization
-
-  useEffect(() => {
-    if (!animate) return;
-    let id;
-    const tick = () => {
-      tRef.current += 0.04;
-      plotEquation(equation, tRef.current);
-      id = requestAnimationFrame(tick);
-    };
-    id = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(id);
-  }, [animate, equation]);
-
-  useEffect(() => {
-    if (!meshRef.current) return;
-    const m = meshRef.current;
-    if (m.material) {
-      if (Array.isArray(m.material)) m.material.forEach(mt => { mt.wireframe = wireframe; });
-      else m.material.wireframe = wireframe;
+function plot(eq, t=0) {
+  const raw = eq || document.getElementById("eq-input").value.trim();
+  if (!raw) return;
+  removeMesh();
+  showError("");
+  const type = classify(raw);
+  const range = getRange();
+  let obj=null;
+  try {
+    if (type==="helix") {
+      obj=new THREE.Line(buildHelix(), new THREE.LineBasicMaterial({color:0x00ffff}));
+    } else if (type==="surface") {
+      const geo=buildSurface(rhs(raw,"z"), range, t);
+      if (!geo) throw new Error("Could not evaluate");
+      obj=new THREE.Mesh(geo, new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,wireframe,shininess:60}));
+    } else if (type==="curve") {
+      const geo=buildCurve(rhs(raw,"y"), range);
+      if (!geo) throw new Error("Could not evaluate");
+      obj=new THREE.Line(geo, new THREE.LineBasicMaterial({color:0xffdd00}));
+    } else if (type==="curvex") {
+      const geo=buildCurve(rhs(raw,"x"), range, true);
+      if (!geo) throw new Error("Could not evaluate");
+      obj=new THREE.Line(geo, new THREE.LineBasicMaterial({color:0xffdd00}));
+    } else {
+      const geo=buildImplicit(raw, range);
+      if (!geo) throw new Error("No surface found — adjust range");
+      obj=new THREE.Points(geo, new THREE.PointsMaterial({color:0xff88ff,size:0.07}));
     }
-  }, [wireframe]);
-
-  const plotEquation = useCallback((eq, t = 0) => {
-    const scene = sceneRef.current;
-    if (!scene) return;
-
-    if (meshRef.current) { scene.remove(meshRef.current); meshRef.current = null; }
-
-    const type = classifyEquation(eq);
-    let obj = null;
-
-    try {
-      if (type === 'special') {
-        const geo = buildHelixGeometry();
-        obj = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 }));
-      } else if (type === 'surface') {
-        const rhs = extractRHS(eq, 'z');
-        const geo = buildSurfaceGeometry(rhs, range, t);
-        if (!geo) throw new Error('Could not evaluate expression');
-        const mat = new THREE.MeshPhongMaterial({
-          vertexColors: true, side: THREE.DoubleSide,
-          wireframe, shininess: 60,
-        });
-        obj = new THREE.Mesh(geo, mat);
-      } else if (type === 'curve') {
-        const rhs = extractRHS(eq, 'y');
-        const geo = buildCurveGeometry(rhs, range, false);
-        if (!geo) throw new Error('Could not evaluate expression');
-        obj = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffdd00, linewidth: 2 }));
-      } else if (type === 'curve_x') {
-        const rhs = extractRHS(eq, 'x');
-        const geo = buildCurveGeometry(rhs, range, true);
-        if (!geo) throw new Error('Could not evaluate expression');
-        obj = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffdd00, linewidth: 2 }));
-      } else {
-        const geo = buildImplicitGeometry(eq, range);
-        if (!geo) throw new Error('No surface found — try adjusting range');
-        obj = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xff88ff, size: 0.07 }));
-      }
-
-      scene.add(obj);
-      meshRef.current = obj;
-      setError('');
-      setPlotted(eq);
-    } catch (e) {
-      setError('⚠ ' + (e.message || 'Invalid equation'));
-    }
-  }, [range, wireframe]);
-
-  const handlePlot = () => { tRef.current = 0; plotEquation(equation); };
-  const handleClear = () => {
-    const scene = sceneRef.current;
-    if (meshRef.current) { scene.remove(meshRef.current); meshRef.current = null; }
-    setError(''); setPlotted('');
-  };
-
-  const S = {
-    app: { display:'flex', flexDirection:'column', height:'100vh', background:'#0a0a14', color:'#e0e0ff', fontFamily:"'Segoe UI', sans-serif" },
-    header: { padding:'10px 16px', background:'#12122a', borderBottom:'1px solid #2a2a4a', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' },
-    title: { margin:0, fontSize:18, fontWeight:700, color:'#a0a8ff', letterSpacing:1 },
-    input: { flex:1, minWidth:220, padding:'6px 10px', borderRadius:6, border:'1px solid #3a3a6a', background:'#1a1a30', color:'#e0e0ff', fontSize:14 },
-    btn: (c='') => ({ padding:'6px 14px', borderRadius:6, border:'none', cursor:'pointer', fontWeight:600, fontSize:13,
-      background: c==='plot'?'#4a5aef': c==='clear'?'#3a3a5a': c==='active'?'#2a6a3a':'#2a2a4a',
-      color: c==='plot'?'#fff':'#c0c8ff' }),
-    panel: { display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' },
-    error: { color:'#ff8888', fontSize:12, padding:'4px 16px', background:'#1a0a0a' },
-    canvas: { flex:1, position:'relative' },
-    presets: { display:'flex', gap:6, flexWrap:'wrap', padding:'6px 16px', background:'#0e0e20', borderBottom:'1px solid #1e1e3a' },
-    presetBtn: { padding:'3px 10px', borderRadius:12, border:'1px solid #3a3a6a', background:'#1a1a2e', color:'#a0a8ff', cursor:'pointer', fontSize:12 },
-    legend: { position:'absolute', bottom:12, left:12, background:'rgba(0,0,0,0.6)', padding:'8px 12px', borderRadius:8, fontSize:12, lineHeight:1.8 },
-    rangeRow: { display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' },
-    rangeInput: { width:52, padding:'3px 6px', borderRadius:4, border:'1px solid #3a3a6a', background:'#1a1a30', color:'#e0e0ff', fontSize:12 },
-  };
-
-  const RangeField = ({ k, label }) => (
-    <label style={{ fontSize:12, color:'#8888aa' }}>{label}
-      <input style={S.rangeInput} className="fs3d-range-input" type='number' value={range[k]}
-        onChange={e => setRange(r => ({ ...r, [k]: parseFloat(e.target.value) || 0 }))} />
-    </label>
-  );
-
-  return (
-    <div style={S.app}>
-      <div style={S.header} className="fs3d-header">
-        <h1 style={S.title}>∫ 3D Math Visualizer</h1>
-        <div style={S.panel}>
-          <input style={S.input} className="fs3d-input" value={equation}
-            onChange={e => setEquation(e.target.value)}
-            onKeyDown={e => e.key==='Enter' && handlePlot()}
-            placeholder='e.g. z = sin(x)*cos(y) or x^2+y^2+z^2=4' />
-          <button style={S.btn('plot')} onClick={handlePlot}>▶ Plot</button>
-          <button style={S.btn('clear')} onClick={handleClear}>✕ Clear</button>
-        </div>
-        <div style={S.panel}>
-          <button style={S.btn(wireframe?'active':'')} onClick={() => setWireframe(w=>!w)}>
-            ⬡ {wireframe?'Solid':'Wireframe'}
-          </button>
-          <button style={S.btn(animate?'active':'')} onClick={() => setAnimate(a=>!a)}>
-            {animate?'⏹ Stop':'▶ Animate'}
-          </button>
-        </div>
-      </div>
-
-      <div className="fs3d-range" style={{ padding:'6px 16px', background:'#0c0c1e', borderBottom:'1px solid #1e1e3a', display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
-        <span style={{ fontSize:12, color:'#6666aa', fontWeight:600 }}>Range:</span>
-        <RangeField k='xMin' label='x min ' /><RangeField k='xMax' label='x max ' />
-        <RangeField k='yMin' label='y min ' /><RangeField k='yMax' label='y max ' />
-        <RangeField k='zMin' label='z min ' /><RangeField k='zMax' label='z max ' />
-      </div>
-
-      <div style={S.presets} className="fs3d-presets">
-        {PRESETS.map(p => (
-          <button key={p.label} style={S.presetBtn}
-            onClick={() => { setEquation(p.eq); setTimeout(() => plotEquation(p.eq), 0); }}>
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      {error && <div style={S.error}>{error}</div>}
-
-      <div style={S.canvas} ref={mountRef}>
-        <div style={S.legend}>
-          <div style={{ color:'#ff5555' }}>─ X axis</div>
-          <div style={{ color:'#55ff55' }}>─ Y axis</div>
-          <div style={{ color:'#5599ff' }}>─ Z axis</div>
-          {plotted && <div style={{ color:'#aaaaff', marginTop:4, maxWidth:200, wordBreak:'break-all' }}>📈 {plotted}</div>}
-          <div style={{ color:'#666688', marginTop:4, fontSize:11 }}>Drag · Scroll · Orbit</div>
-        </div>
-      </div>
-    </div>
-  );
+    scene.add(obj);
+    currentMesh=obj;
+    const pl=document.getElementById("plotted-label");
+    document.getElementById("plotted-text").textContent=raw;
+    pl.style.display="block";
+  } catch(e) { showError("⚠ "+e.message); }
 }
 
-const root = createRoot(document.getElementById('root'));
-root.render(<App />);
-  </script>
+// ── Buttons ───────────────────────────────────────────────────────────────────
+document.getElementById("btn-plot").onclick = () => { tVal=0; plot(); };
+document.getElementById("eq-input").addEventListener("keydown", e => { if(e.key==="Enter") { tVal=0; plot(); }});
+
+document.getElementById("btn-clear").onclick = () => {
+  removeMesh(); showError("");
+  document.getElementById("plotted-label").style.display="none";
+};
+
+document.getElementById("btn-wire").onclick = function() {
+  wireframe=!wireframe;
+  this.classList.toggle("active", wireframe);
+  this.textContent = wireframe ? "⬡ Solid" : "⬡ Wireframe";
+  if (currentMesh?.material) currentMesh.material.wireframe=wireframe;
+};
+
+document.getElementById("btn-anim").onclick = function() {
+  animating=!animating;
+  this.classList.toggle("active", animating);
+  this.textContent = animating ? "⏹ Stop" : "▶ Animate";
+  if (animating) tick();
+};
+
+function tick() {
+  if (!animating) return;
+  tVal+=0.04;
+  plot(document.getElementById("eq-input").value.trim(), tVal);
+  requestAnimationFrame(tick);
+}
+
+// ── Initial plot ──────────────────────────────────────────────────────────────
+plot();
+</script>
 </body>
 </html>
