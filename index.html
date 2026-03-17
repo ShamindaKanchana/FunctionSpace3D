@@ -52,8 +52,23 @@
   <input id="eq-input" placeholder="e.g. z = sin(x)*cos(y)  or  x^2+y^2+z^2=4" value="z = sin(x) * cos(y)"/>
   <button class="btn" id="btn-plot">▶ Plot</button>
   <button class="btn" id="btn-clear">✕ Clear</button>
+  <button class="btn" id="btn-help">❔ Help</button>
   <button class="btn" id="btn-wire">⬡ Wireframe</button>
   <button class="btn" id="btn-anim">▶ Animate</button>
+</div>
+
+<div id="help-box" style="display:none; padding:10px 12px; margin: 8px 14px; background:#12122a; border:1px solid #3a3a6a; border-radius:8px; font-size:12px; line-height:1.4; color:#d7d8ff;">
+  <strong>Equation syntax help</strong>
+  <ul style="margin:5px 0 0 16px; padding-left:0;">
+    <li>Power: <code>x^2</code>, <code>(x+y)^3</code></li>
+    <li>Multiply: <code>*</code> (use it between variables/numbers), e.g. <code>2*x</code> or <code>x*y</code></li>
+    <li>Divide: <code>/</code>, e.g. <code>(x^2+y^2)/4</code></li>
+    <li>Add/subtract: <code>+</code>, <code>-</code></li>
+    <li>Functions: <code>sin(), cos(), tan(), exp(), log(), sqrt(), abs()</code></li>
+    <li>Surfaces: <code>z = ...</code>; curves: <code>y = ...</code> or <code>x = ...</code>; implicit: <code>x^2+y^2+z^2=4</code></li>
+    <li>Animation: use <code>t</code> in expressions, e.g. <code>z = sin(x+t)*cos(y)</code></li>
+  </ul>
+  <button id="btn-close-help" class="btn" style="margin-top:8px; padding:4px 8px; font-size:11px;">Close</button>
 </div>
 
 <!-- ── Range ── -->
@@ -364,6 +379,15 @@ document.getElementById("eq-input").addEventListener("keydown", e => { if(e.key=
 document.getElementById("btn-clear").onclick = () => {
   removeMesh(); showError("");
   document.getElementById("plotted-label").style.display="none";
+};
+
+document.getElementById("btn-help").onclick = () => {
+  const hb = document.getElementById("help-box");
+  hb.style.display = hb.style.display === "none" ? "block" : "none";
+};
+
+document.getElementById("btn-close-help").onclick = () => {
+  document.getElementById("help-box").style.display = "none";
 };
 
 document.getElementById("btn-wire").onclick = function() {
