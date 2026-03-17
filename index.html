@@ -1,39 +1,48 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import * as THREE from "three";
-import * as math from "mathjs";
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FunctionSpace3D</title>
+  <style>body{margin:0;overflow:hidden}#root{width:100vw;height:100vh}</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module">
+import React, { useState, useEffect, useRef, useCallback } from 'https://esm.sh/react@18';
+import { createRoot } from 'https://esm.sh/react-dom@18/client';
+import * as THREE from 'https://esm.sh/three@0.158';
+import * as math from 'https://esm.sh/mathjs@13.9.1';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 const PRESETS = [
-  { label: "Sine Surface",   eq: "z = sin(x) * cos(y)",        type: "surface" },
-  { label: "Paraboloid",     eq: "z = x^2 + y^2",              type: "surface" },
-  { label: "Saddle",         eq: "z = x^2 - y^2",              type: "surface" },
-  { label: "Ripple",         eq: "z = sin(sqrt(x^2+y^2))",     type: "surface" },
-  { label: "Sphere",         eq: "x^2 + y^2 + z^2 = 4",        type: "implicit" },
-  { label: "Torus (approx)", eq: "z = 0.3*sin(6*atan2(y,x))",  type: "surface" },
-  { label: "Sine Curve",     eq: "y = sin(x)",                  type: "curve" },
-  { label: "Helix",          eq: "helix",                       type: "special" },
-  { label: "Cone",           eq: "z = sqrt(x^2 + y^2)",        type: "surface" },
-  { label: "Wave (animate)", eq: "z = sin(x + t) * cos(y)",    type: "surface" },
+  { label: 'Sine Surface',   eq: 'z = sin(x) * cos(y)',        type: 'surface' },
+  { label: 'Paraboloid',     eq: 'z = x^2 + y^2',              type: 'surface' },
+  { label: 'Saddle',         eq: 'z = x^2 - y^2',              type: 'surface' },
+  { label: 'Ripple',         eq: 'z = sin(sqrt(x^2+y^2))',     type: 'surface' },
+  { label: 'Sphere',         eq: 'x^2 + y^2 + z^2 = 4',        type: 'implicit' },
+  { label: 'Torus (approx)', eq: 'z = 0.3*sin(6*atan2(y,x))',  type: 'surface' },
+  { label: 'Sine Curve',     eq: 'y = sin(x)',                  type: 'curve' },
+  { label: 'Helix',          eq: 'helix',                       type: 'special' },
+  { label: 'Cone',           eq: 'z = sqrt(x^2 + y^2)',        type: 'surface' },
+  { label: 'Wave (animate)', eq: 'z = sin(x + t) * cos(y)',    type: 'surface' },
 ];
 
 const DEFAULT_RANGE = { xMin: -5, xMax: 5, yMin: -5, yMax: 5, zMin: -5, zMax: 5 };
 const GRID_STEPS = 80;
 
-// ─── Equation Parser / Classifier ─────────────────────────────────────────────
 function classifyEquation(eq) {
   const s = eq.trim().toLowerCase();
-  if (s === "helix") return "special";
-  if (/^z\s*=/.test(s)) return "surface";
-  if (/^y\s*=/.test(s)) return "curve";
-  if (/^x\s*=/.test(s)) return "curve_x";
-  return "implicit";
+  if (s === 'helix') return 'special';
+  if (/^z\s*=/.test(s)) return 'surface';
+  if (/^y\s*=/.test(s)) return 'curve';
+  if (/^x\s*=/.test(s)) return 'curve_x';
+  return 'implicit';
 }
 
 function extractRHS(eq, lhsVar) {
-  return eq.replace(new RegExp(`^${lhsVar}\\s*=\\s*`, "i"), "").trim();
+  return eq.replace(new RegExp(`^${lhsVar}\\s*=\\s*`, 'i'), '').trim();
 }
 
-// ─── Geometry Builders ────────────────────────────────────────────────────────
 function buildSurfaceGeometry(exprStr, range, t = 0) {
   const { xMin, xMax, yMin, yMax } = range;
   const steps = GRID_STEPS;
@@ -71,7 +80,6 @@ function buildSurfaceGeometry(exprStr, range, t = 0) {
       const z = zVals[i][j];
       positions.push(x, isNaN(z) ? 0 : z, y);
       const t01 = isNaN(z) ? 0 : clamp((z - zMin) / zRange, 0, 1);
-      // heatmap: blue → cyan → green → yellow → red
       const r = clamp(1.5 - Math.abs(t01 * 4 - 3), 0, 1);
       const g = clamp(1.5 - Math.abs(t01 * 4 - 2), 0, 1);
       const b = clamp(1.5 - Math.abs(t01 * 4 - 1), 0, 1);
@@ -85,7 +93,6 @@ function buildSurfaceGeometry(exprStr, range, t = 0) {
       const b = a + 1;
       const c = a + (steps + 1);
       const d = c + 1;
-      // skip degenerate quads
       const zs = [zVals[i][j], zVals[i][j+1], zVals[i+1][j], zVals[i+1][j+1]];
       if (zs.some(isNaN)) continue;
       indices.push(a, c, b, b, c, d);
@@ -93,8 +100,8 @@ function buildSurfaceGeometry(exprStr, range, t = 0) {
   }
 
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute("color",    new THREE.Float32BufferAttribute(colors, 3));
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color',    new THREE.Float32BufferAttribute(colors, 3));
   geo.setIndex(indices);
   geo.computeVertexNormals();
   return geo;
@@ -113,19 +120,17 @@ function buildCurveGeometry(exprStr, range, isXFunc = false) {
       if (isFinite(y)) {
         pts.push(isXFunc ? new THREE.Vector3(y, x, 0) : new THREE.Vector3(x, y, 0));
       }
-    } catch { /* skip */ }
+    } catch { }
   }
   return new THREE.BufferGeometry().setFromPoints(pts);
 }
 
 function buildImplicitGeometry(exprStr, range) {
-  // Marching-cubes-lite: evaluate on a grid, generate triangles where sign changes
   const { xMin, xMax, yMin, yMax, zMin, zMax } = range;
   const N = 40;
   let compiled;
-  // normalize: move everything to lhs (lhs - rhs = 0)
   let expr = exprStr;
-  const eqIdx = expr.indexOf("=");
+  const eqIdx = expr.indexOf('=');
   if (eqIdx !== -1) {
     const lhs = expr.slice(0, eqIdx).trim();
     const rhs = expr.slice(eqIdx + 1).trim();
@@ -144,7 +149,6 @@ function buildImplicitGeometry(exprStr, range) {
   };
 
   const pts = [];
-  // simple surface nets: for each edge, if sign changes, emit midpoint
   for (let i = 0; i < N; i++) {
     for (let j = 0; j < N; j++) {
       for (let k = 0; k < N; k++) {
@@ -184,54 +188,7 @@ function buildHelixGeometry() {
   return new THREE.BufferGeometry().setFromPoints(pts);
 }
 
-// ─── Orbit Controls (vanilla JS, no import needed) ───────────────────────────
-function useOrbitControls(camera, domEl) {
-  const state = useRef({ dragging: false, lastX: 0, lastY: 0, theta: 0.6, phi: 1.0, radius: 14 });
-
-  useEffect(() => {
-    if (!domEl) return;
-    const s = state.current;
-
-    const updateCamera = () => {
-      camera.position.set(
-        s.radius * Math.sin(s.phi) * Math.sin(s.theta),
-        s.radius * Math.cos(s.phi),
-        s.radius * Math.sin(s.phi) * Math.cos(s.theta)
-      );
-      camera.lookAt(0, 0, 0);
-    };
-    updateCamera();
-
-    const onDown = e => { s.dragging = true; s.lastX = e.clientX; s.lastY = e.clientY; };
-    const onUp   = () => { s.dragging = false; };
-    const onMove = e => {
-      if (!s.dragging) return;
-      s.theta -= (e.clientX - s.lastX) * 0.01;
-      s.phi    = Math.max(0.1, Math.min(Math.PI - 0.1, s.phi - (e.clientY - s.lastY) * 0.01));
-      s.lastX = e.clientX; s.lastY = e.clientY;
-      updateCamera();
-    };
-    const onWheel = e => {
-      s.radius = Math.max(3, Math.min(40, s.radius + e.deltaY * 0.02));
-      updateCamera();
-    };
-
-    domEl.addEventListener("mousedown", onDown);
-    window.addEventListener("mouseup",  onUp);
-    window.addEventListener("mousemove", onMove);
-    domEl.addEventListener("wheel", onWheel, { passive: true });
-    return () => {
-      domEl.removeEventListener("mousedown", onDown);
-      window.removeEventListener("mouseup",  onUp);
-      window.removeEventListener("mousemove", onMove);
-      domEl.removeEventListener("wheel", onWheel);
-    };
-  }, [camera, domEl]);
-}
-
-// ─── Axes + Grid Helper ───────────────────────────────────────────────────────
 function createAxesAndGrid(scene) {
-  // Remove old helpers
   scene.children.filter(c => c.userData.isHelper).forEach(c => scene.remove(c));
 
   const addLine = (points, color) => {
@@ -242,12 +199,10 @@ function createAxesAndGrid(scene) {
     scene.add(line);
   };
 
-  // Axes
   addLine([new THREE.Vector3(-8,0,0), new THREE.Vector3(8,0,0)], 0xff4444);
   addLine([new THREE.Vector3(0,-8,0), new THREE.Vector3(0,8,0)], 0x44ff44);
   addLine([new THREE.Vector3(0,0,-8), new THREE.Vector3(0,0,8)], 0x4488ff);
 
-  // Grid on XZ plane
   const gridMat = new THREE.LineBasicMaterial({ color: 0x444466, transparent: true, opacity: 0.4 });
   for (let i = -5; i <= 5; i++) {
     const g1 = new THREE.BufferGeometry().setFromPoints([
@@ -262,8 +217,76 @@ function createAxesAndGrid(scene) {
   }
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-export default function App() {
+function setupOrbitControls(camera, domEl) {
+  const state = { dragging: false, lastX: 0, lastY: 0, theta: 0.6, phi: 1.0, radius: 14 };
+
+  const updateCamera = () => {
+    camera.position.set(
+      state.radius * Math.sin(state.phi) * Math.sin(state.theta),
+      state.radius * Math.cos(state.phi),
+      state.radius * Math.sin(state.phi) * Math.cos(state.theta)
+    );
+    camera.lookAt(0, 0, 0);
+  };
+  updateCamera();
+
+  const onDown = e => { state.dragging = true; state.lastX = e.clientX; state.lastY = e.clientY; };
+  const onUp   = () => { state.dragging = false; };
+  const onMove = e => {
+    if (!state.dragging) return;
+    state.theta -= (e.clientX - state.lastX) * 0.01;
+    state.phi    = Math.max(0.1, Math.min(Math.PI - 0.1, state.phi - (e.clientY - state.lastY) * 0.01));
+    state.lastX = e.clientX; state.lastY = e.clientY;
+    updateCamera();
+  };
+  const onWheel = e => {
+    state.radius = Math.max(3, Math.min(40, state.radius + e.deltaY * 0.02));
+    updateCamera();
+  };
+
+  domEl.addEventListener('mousedown', onDown);
+  window.addEventListener('mouseup',  onUp);
+  window.addEventListener('mousemove', onMove);
+  domEl.addEventListener('wheel', onWheel, { passive: true });
+
+  return () => {
+    domEl.removeEventListener('mousedown', onDown);
+    window.removeEventListener('mouseup',  onUp);
+    window.removeEventListener('mousemove', onMove);
+    domEl.removeEventListener('wheel', onWheel);
+  };
+}
+
+function App() {
+  scene.children.filter(c => c.userData.isHelper).forEach(c => scene.remove(c));
+
+  const addLine = (points, color) => {
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = new THREE.LineBasicMaterial({ color });
+    const line = new THREE.Line(geo, mat);
+    line.userData.isHelper = true;
+    scene.add(line);
+  };
+
+  addLine([new THREE.Vector3(-8,0,0), new THREE.Vector3(8,0,0)], 0xff4444);
+  addLine([new THREE.Vector3(0,-8,0), new THREE.Vector3(0,8,0)], 0x44ff44);
+  addLine([new THREE.Vector3(0,0,-8), new THREE.Vector3(0,0,8)], 0x4488ff);
+
+  const gridMat = new THREE.LineBasicMaterial({ color: 0x444466, transparent: true, opacity: 0.4 });
+  for (let i = -5; i <= 5; i++) {
+    const g1 = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(i, 0, -5), new THREE.Vector3(i, 0, 5)
+    ]);
+    const g2 = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-5, 0, i), new THREE.Vector3(5, 0, i)
+    ]);
+    const l1 = new THREE.Line(g1, gridMat); l1.userData.isHelper = true;
+    const l2 = new THREE.Line(g2, gridMat); l2.userData.isHelper = true;
+    scene.add(l1); scene.add(l2);
+  }
+}
+
+function App() {
   const mountRef   = useRef(null);
   const rendererRef = useRef(null);
   const sceneRef   = useRef(null);
@@ -272,23 +295,25 @@ export default function App() {
   const animRef    = useRef(null);
   const tRef       = useRef(0);
 
-  const [equation,  setEquation]  = useState("z = sin(x) * cos(y)");
+  const [equation,  setEquation]  = useState('z = sin(x) * cos(y)');
   const [wireframe, setWireframe] = useState(false);
   const [animate,   setAnimate]   = useState(false);
-  const [error,     setError]     = useState("");
+  const [error,     setError]     = useState('');
   const [range,     setRange]     = useState(DEFAULT_RANGE);
-  const [plotted,   setPlotted]   = useState("");
+  const [plotted,   setPlotted]   = useState('');
 
-  // ── Init Three.js scene ──
   useEffect(() => {
-    const w = mountRef.current.clientWidth;
-    const h = mountRef.current.clientHeight;
+    const dom = mountRef.current;
+    if (!dom) return;
+
+    const w = dom.clientWidth;
+    const h = dom.clientHeight;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(w, h);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setClearColor(0x0f0f1a);
-    mountRef.current.appendChild(renderer.domElement);
+    dom.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
     const scene = new THREE.Scene();
@@ -297,7 +322,6 @@ export default function App() {
     const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 1000);
     cameraRef.current = camera;
 
-    // Lights
     const ambient = new THREE.AmbientLight(0xffffff, 0.4);
     scene.add(ambient);
     const dir = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -305,6 +329,8 @@ export default function App() {
     scene.add(dir);
 
     createAxesAndGrid(scene);
+
+    const cleanupOrbit = setupOrbitControls(camera, renderer.domElement);
 
     const loop = () => {
       animRef.current = requestAnimationFrame(loop);
@@ -320,20 +346,19 @@ export default function App() {
       camera.updateProjectionMatrix();
       renderer.setSize(w2, h2);
     };
-    window.addEventListener("resize", onResize);
+    window.addEventListener('resize', onResize);
 
     return () => {
       cancelAnimationFrame(animRef.current);
-      window.removeEventListener("resize", onResize);
+      window.removeEventListener('resize', onResize);
+      cleanupOrbit();
       renderer.dispose();
       if (mountRef.current) mountRef.current.removeChild(renderer.domElement);
     };
   }, []);
 
-  // Orbit controls
-  useOrbitControls(cameraRef.current, rendererRef.current?.domElement);
+  // orbit controls are attached during initialization
 
-  // ── Animation ticker ──
   useEffect(() => {
     if (!animate) return;
     let id;
@@ -346,7 +371,6 @@ export default function App() {
     return () => cancelAnimationFrame(id);
   }, [animate, equation]);
 
-  // ── Wireframe toggle ──
   useEffect(() => {
     if (!meshRef.current) return;
     const m = meshRef.current;
@@ -356,54 +380,50 @@ export default function App() {
     }
   }, [wireframe]);
 
-  // ── Core plot function ──
   const plotEquation = useCallback((eq, t = 0) => {
     const scene = sceneRef.current;
     if (!scene) return;
 
-    // Remove previous mesh
     if (meshRef.current) { scene.remove(meshRef.current); meshRef.current = null; }
 
     const type = classifyEquation(eq);
     let obj = null;
 
     try {
-      if (type === "special") {
-        // Helix
+      if (type === 'special') {
         const geo = buildHelixGeometry();
         obj = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 }));
-      } else if (type === "surface") {
-        const rhs = extractRHS(eq, "z");
+      } else if (type === 'surface') {
+        const rhs = extractRHS(eq, 'z');
         const geo = buildSurfaceGeometry(rhs, range, t);
-        if (!geo) throw new Error("Could not evaluate expression");
+        if (!geo) throw new Error('Could not evaluate expression');
         const mat = new THREE.MeshPhongMaterial({
           vertexColors: true, side: THREE.DoubleSide,
           wireframe, shininess: 60,
         });
         obj = new THREE.Mesh(geo, mat);
-      } else if (type === "curve") {
-        const rhs = extractRHS(eq, "y");
+      } else if (type === 'curve') {
+        const rhs = extractRHS(eq, 'y');
         const geo = buildCurveGeometry(rhs, range, false);
-        if (!geo) throw new Error("Could not evaluate expression");
+        if (!geo) throw new Error('Could not evaluate expression');
         obj = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffdd00, linewidth: 2 }));
-      } else if (type === "curve_x") {
-        const rhs = extractRHS(eq, "x");
+      } else if (type === 'curve_x') {
+        const rhs = extractRHS(eq, 'x');
         const geo = buildCurveGeometry(rhs, range, true);
-        if (!geo) throw new Error("Could not evaluate expression");
+        if (!geo) throw new Error('Could not evaluate expression');
         obj = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffdd00, linewidth: 2 }));
       } else {
-        // implicit
         const geo = buildImplicitGeometry(eq, range);
-        if (!geo) throw new Error("No surface found — try adjusting range");
+        if (!geo) throw new Error('No surface found — try adjusting range');
         obj = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xff88ff, size: 0.07 }));
       }
 
       scene.add(obj);
       meshRef.current = obj;
-      setError("");
+      setError('');
       setPlotted(eq);
     } catch (e) {
-      setError("⚠ " + (e.message || "Invalid equation"));
+      setError('⚠ ' + (e.message || 'Invalid equation'));
     }
   }, [range, wireframe]);
 
@@ -411,67 +431,63 @@ export default function App() {
   const handleClear = () => {
     const scene = sceneRef.current;
     if (meshRef.current) { scene.remove(meshRef.current); meshRef.current = null; }
-    setError(""); setPlotted("");
+    setError(''); setPlotted('');
   };
 
-  // ── Styles ──
   const S = {
-    app: { display:"flex", flexDirection:"column", height:"100vh", background:"#0a0a14", color:"#e0e0ff", fontFamily:"'Segoe UI', sans-serif" },
-    header: { padding:"10px 16px", background:"#12122a", borderBottom:"1px solid #2a2a4a", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" },
-    title: { margin:0, fontSize:18, fontWeight:700, color:"#a0a8ff", letterSpacing:1 },
-    input: { flex:1, minWidth:220, padding:"6px 10px", borderRadius:6, border:"1px solid #3a3a6a", background:"#1a1a30", color:"#e0e0ff", fontSize:14 },
-    btn: (c="") => ({ padding:"6px 14px", borderRadius:6, border:"none", cursor:"pointer", fontWeight:600, fontSize:13,
-      background: c==="plot"?"#4a5aef": c==="clear"?"#3a3a5a": c==="active"?"#2a6a3a":"#2a2a4a",
-      color: c==="plot"?"#fff":"#c0c8ff" }),
-    panel: { display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" },
-    error: { color:"#ff8888", fontSize:12, padding:"4px 16px", background:"#1a0a0a" },
-    canvas: { flex:1, position:"relative" },
-    presets: { display:"flex", gap:6, flexWrap:"wrap", padding:"6px 16px", background:"#0e0e20", borderBottom:"1px solid #1e1e3a" },
-    presetBtn: { padding:"3px 10px", borderRadius:12, border:"1px solid #3a3a6a", background:"#1a1a2e", color:"#a0a8ff", cursor:"pointer", fontSize:12 },
-    legend: { position:"absolute", bottom:12, left:12, background:"rgba(0,0,0,0.6)", padding:"8px 12px", borderRadius:8, fontSize:12, lineHeight:1.8 },
-    rangeRow: { display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" },
-    rangeInput: { width:52, padding:"3px 6px", borderRadius:4, border:"1px solid #3a3a6a", background:"#1a1a30", color:"#e0e0ff", fontSize:12 },
+    app: { display:'flex', flexDirection:'column', height:'100vh', background:'#0a0a14', color:'#e0e0ff', fontFamily:"'Segoe UI', sans-serif" },
+    header: { padding:'10px 16px', background:'#12122a', borderBottom:'1px solid #2a2a4a', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' },
+    title: { margin:0, fontSize:18, fontWeight:700, color:'#a0a8ff', letterSpacing:1 },
+    input: { flex:1, minWidth:220, padding:'6px 10px', borderRadius:6, border:'1px solid #3a3a6a', background:'#1a1a30', color:'#e0e0ff', fontSize:14 },
+    btn: (c='') => ({ padding:'6px 14px', borderRadius:6, border:'none', cursor:'pointer', fontWeight:600, fontSize:13,
+      background: c==='plot'?'#4a5aef': c==='clear'?'#3a3a5a': c==='active'?'#2a6a3a':'#2a2a4a',
+      color: c==='plot'?'#fff':'#c0c8ff' }),
+    panel: { display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' },
+    error: { color:'#ff8888', fontSize:12, padding:'4px 16px', background:'#1a0a0a' },
+    canvas: { flex:1, position:'relative' },
+    presets: { display:'flex', gap:6, flexWrap:'wrap', padding:'6px 16px', background:'#0e0e20', borderBottom:'1px solid #1e1e3a' },
+    presetBtn: { padding:'3px 10px', borderRadius:12, border:'1px solid #3a3a6a', background:'#1a1a2e', color:'#a0a8ff', cursor:'pointer', fontSize:12 },
+    legend: { position:'absolute', bottom:12, left:12, background:'rgba(0,0,0,0.6)', padding:'8px 12px', borderRadius:8, fontSize:12, lineHeight:1.8 },
+    rangeRow: { display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' },
+    rangeInput: { width:52, padding:'3px 6px', borderRadius:4, border:'1px solid #3a3a6a', background:'#1a1a30', color:'#e0e0ff', fontSize:12 },
   };
 
   const RangeField = ({ k, label }) => (
-    <label style={{ fontSize:12, color:"#8888aa" }}>{label}
-      <input style={S.rangeInput} type="number" value={range[k]}
-        onChange={e => setRange(r => ({ ...r, [k]: parseFloat(e.target.value)||0 }))} />
+    <label style={{ fontSize:12, color:'#8888aa' }}>{label}
+      <input style={S.rangeInput} type='number' value={range[k]}
+        onChange={e => setRange(r => ({ ...r, [k]: parseFloat(e.target.value) || 0 }))} />
     </label>
   );
 
   return (
     <div style={S.app}>
-      {/* Header */}
       <div style={S.header}>
         <h1 style={S.title}>∫ 3D Math Visualizer</h1>
         <div style={S.panel}>
           <input style={S.input} value={equation}
             onChange={e => setEquation(e.target.value)}
-            onKeyDown={e => e.key==="Enter" && handlePlot()}
-            placeholder="e.g. z = sin(x)*cos(y) or x^2+y^2+z^2=4" />
-          <button style={S.btn("plot")} onClick={handlePlot}>▶ Plot</button>
-          <button style={S.btn("clear")} onClick={handleClear}>✕ Clear</button>
+            onKeyDown={e => e.key==='Enter' && handlePlot()}
+            placeholder='e.g. z = sin(x)*cos(y) or x^2+y^2+z^2=4' />
+          <button style={S.btn('plot')} onClick={handlePlot}>▶ Plot</button>
+          <button style={S.btn('clear')} onClick={handleClear}>✕ Clear</button>
         </div>
         <div style={S.panel}>
-          <button style={S.btn(wireframe?"active":"")} onClick={() => setWireframe(w=>!w)}>
-            ⬡ {wireframe?"Solid":"Wireframe"}
+          <button style={S.btn(wireframe?'active':'')} onClick={() => setWireframe(w=>!w)}>
+            ⬡ {wireframe?'Solid':'Wireframe'}
           </button>
-          <button style={S.btn(animate?"active":"")} onClick={() => setAnimate(a=>!a)}>
-            {animate?"⏹ Stop":"▶ Animate"}
+          <button style={S.btn(animate?'active':'')} onClick={() => setAnimate(a=>!a)}>
+            {animate?'⏹ Stop':'▶ Animate'}
           </button>
         </div>
       </div>
 
-      {/* Range controls */}
-      <div style={{ padding:"6px 16px", background:"#0c0c1e", borderBottom:"1px solid #1e1e3a", display:"flex", gap:12, flexWrap:"wrap", alignItems:"center" }}>
-        <span style={{ fontSize:12, color:"#6666aa", fontWeight:600 }}>Range:</span>
-        <RangeField k="xMin" label="x min " /><RangeField k="xMax" label="x max " />
-        <RangeField k="yMin" label="y min " /><RangeField k="yMax" label="y max " />
-        <RangeField k="zMin" label="z min " /><RangeField k="zMax" label="z max " />
+      <div style={{ padding:'6px 16px', background:'#0c0c1e', borderBottom:'1px solid #1e1e3a', display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
+        <span style={{ fontSize:12, color:'#6666aa', fontWeight:600 }}>Range:</span>
+        <RangeField k='xMin' label='x min ' /><RangeField k='xMax' label='x max ' />
+        <RangeField k='yMin' label='y min ' /><RangeField k='yMax' label='y max ' />
+        <RangeField k='zMin' label='z min ' /><RangeField k='zMax' label='z max ' />
       </div>
 
-      {/* Presets */}
       <div style={S.presets}>
         {PRESETS.map(p => (
           <button key={p.label} style={S.presetBtn}
@@ -483,16 +499,21 @@ export default function App() {
 
       {error && <div style={S.error}>{error}</div>}
 
-      {/* Canvas */}
       <div style={S.canvas} ref={mountRef}>
         <div style={S.legend}>
-          <div style={{ color:"#ff5555" }}>─ X axis</div>
-          <div style={{ color:"#55ff55" }}>─ Y axis</div>
-          <div style={{ color:"#5599ff" }}>─ Z axis</div>
-          {plotted && <div style={{ color:"#aaaaff", marginTop:4, maxWidth:200, wordBreak:"break-all" }}>📈 {plotted}</div>}
-          <div style={{ color:"#666688", marginTop:4, fontSize:11 }}>Drag · Scroll · Orbit</div>
+          <div style={{ color:'#ff5555' }}>─ X axis</div>
+          <div style={{ color:'#55ff55' }}>─ Y axis</div>
+          <div style={{ color:'#5599ff' }}>─ Z axis</div>
+          {plotted && <div style={{ color:'#aaaaff', marginTop:4, maxWidth:200, wordBreak:'break-all' }}>📈 {plotted}</div>}
+          <div style={{ color:'#666688', marginTop:4, fontSize:11 }}>Drag · Scroll · Orbit</div>
         </div>
       </div>
     </div>
   );
 }
+
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
+  </script>
+</body>
+</html>
